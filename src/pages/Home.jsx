@@ -411,18 +411,18 @@ export default function Home() {
 
         {/* Partners Logos Auto-scroll Marquee & Scrollable Bar */}
         {partners.length > 0 && (
-          <div className="relative overflow-hidden bg-white py-8 px-6 rounded-3xl border border-slate-200/80 shadow-sm group">
+          <div className="relative overflow-hidden bg-white py-10 px-8 rounded-3xl border border-slate-200/80 shadow-sm group">
             {/* Soft gradient fade on left and right edges */}
-            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-white via-white/80 to-transparent z-10 pointer-events-none" />
-            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-white via-white/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white via-white/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white via-white/80 to-transparent z-10 pointer-events-none" />
 
             {/* Scrollable Container with Marquee Animation */}
-            <div className="marquee-container overflow-x-auto flex py-3 cursor-grab active:cursor-grabbing">
-              <div className="animate-marquee-slow flex items-center gap-16 shrink-0">
+            <div className="marquee-container overflow-x-auto flex py-4 cursor-grab active:cursor-grabbing">
+              <div className="animate-marquee-slow flex items-center gap-20 shrink-0">
                 {/* Duplicated items to ensure seamless infinite looping */}
                 {[...partners, ...partners, ...partners, ...partners, ...partners, ...partners].map((p, idx) => (
-                  <div key={`${p.id}-${idx}`} className="h-20 flex items-center justify-center transition opacity-95 hover:opacity-100 hover:scale-110 shrink-0 px-4">
-                    <img src={p.logo_url} alt={p.name} title={p.name} className="max-h-16 sm:max-h-20 max-w-56 object-contain drop-shadow-sm" />
+                  <div key={`${p.id}-${idx}`} className="h-28 sm:h-32 flex items-center justify-center transition opacity-95 hover:opacity-100 hover:scale-110 shrink-0 px-6">
+                    <img src={p.logo_url} alt={p.name} title={p.name} className="max-h-24 sm:max-h-28 max-w-72 object-contain drop-shadow-md" />
                   </div>
                 ))}
               </div>
