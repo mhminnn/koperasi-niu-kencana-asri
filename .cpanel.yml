@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/niun4955/koperasi
+    - /bin/cp -R * $DEPLOYPATH
