@@ -9,6 +9,7 @@ const newsRouter = require('./routes/news');
 const partnersRouter = require('./routes/partners');
 const messagesRouter = require('./routes/messages');
 const socialsRouter = require('./routes/socials');
+const settingsRouter = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,6 +29,7 @@ app.use('/api/news', newsRouter);
 app.use('/api/partners', partnersRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/socials', socialsRouter);
+app.use('/api/settings', settingsRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

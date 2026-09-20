@@ -85,6 +85,7 @@ export default function Products() {
                 <img
                   src={product.image_url || 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'}
                   alt={product.name}
+                  onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'; }}
                   className="w-full h-full object-cover hover:scale-105 transition duration-500"
                 />
                 {product.badge && (

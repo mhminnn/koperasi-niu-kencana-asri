@@ -15,8 +15,16 @@ import {
   Image as ImageIcon,
   Lock,
   ShieldCheck,
-  Share2,
-  ExternalLink
+  ExternalLink,
+  Bot,
+  Sparkles,
+  Key,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Cpu,
+  Star,
+  Share2
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -32,6 +40,22 @@ export default function AdminDashboard() {
   const [socials, setSocials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+
+  // AI Settings State
+  const [aiConfig, setAiConfig] = useState({
+    apiKey: '',
+    showKey: false,
+    connected: false,
+    testing: false,
+    statusMsg: '',
+    latency: '',
+    activeModel: ''
+  });
+  const [aiSaving, setAiSaving] = useState(false);
+
+  // Featured Products Modal State
+  const [featuredModalOpen, setFeaturedModalOpen] = useState(false);
+  const [selectedFeaturedIds, setSelectedFeaturedIds] = useState([]);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -110,6 +134,125 @@ export default function AdminDashboard() {
     setTimeout(() => setNotification(null), 3500);
   };
 
+  const fetchAiSettings = async () => {
+    try {
+      const res = await fetch('/api/settings/ai-key');
+      if (res.ok) {
+        const data = await res.json();
+        setAiConfig(prev => ({
+          ...prev,
+          apiKey: data.apiKey || ''
+        }));
+        if (data.apiKey) {
+          testAiConnection(data.apiKey);
+        }
+      }
+    } catch (e) {
+      console.error('Failed fetching AI settings:', e);
+    }
+  };
+
+  const testAiConnection = async (keyToTest) => {
+    const testKey = keyToTest !== undefined ? keyToTest : aiConfig.apiKey;
+    if (!testKey || !testKey.trim()) {
+      setAiConfig(prev => ({
+        ...prev,
+        connected: false,
+        testing: false,
+        statusMsg: 'API Key belum dimasukkan',
+        activeModel: '',
+        latency: ''
+      }));
+      return;
+    }
+
+    setAiConfig(prev => ({ ...prev, testing: true, statusMsg: 'Menguji koneksi ke Google AI Studio...' }));
+
+    try {
+      const startTime = Date.now();
+      const res = await fetch('/api/settings/test-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ apiKey: testKey })
+      });
+      const endTime = Date.now();
+      const data = await res.json();
+
+      if (res.ok && data.connected) {
+        setAiConfig(prev => ({
+          ...prev,
+          connected: true,
+          testing: false,
+          activeModel: data.model || 'gemini-3.5-flash',
+          latency: `${endTime - startTime} ms`,
+          statusMsg: 'Terhubung & Siap Digunakan'
+        }));
+      } else {
+        setAiConfig(prev => ({
+          ...prev,
+          connected: false,
+          testing: false,
+          activeModel: '',
+          latency: '',
+          statusMsg: data.error || 'Gagal terhubung ke Google AI Studio (API Key tidak valid)'
+        }));
+      }
+    } catch (err) {
+      setAiConfig(prev => ({
+        ...prev,
+        connected: false,
+        testing: false,
+        activeModel: '',
+        latency: '',
+        statusMsg: 'Koneksi ke server backend gagal'
+      }));
+    }
+  };
+
+  const handleSaveAiKey = async (e) => {
+    e.preventDefault();
+    setAiSaving(true);
+    const activeToken = token || localStorage.getItem('adminToken');
+    try {
+      const res = await fetch('/api/settings/ai-key', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeToken}`
+        },
+        body: JSON.stringify({ apiKey: aiConfig.apiKey })
+      });
+      
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (e) {
+        data = { error: `Server error status (${res.status})` };
+      }
+
+      if (res.ok) {
+        showToast('API Key Gemini berhasil disimpan!');
+        testAiConnection(aiConfig.apiKey);
+      } else {
+        if (res.status === 401 || res.status === 403) {
+          showToast('Sesi login telah berakhir, silakan login kembali', 'error');
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('adminData');
+          navigate('/admin/login');
+          return;
+        }
+        showToast(data.error || data.message || 'Gagal menyimpan API Key', 'error');
+      }
+    } catch (err) {
+      showToast('Gagal koneksi ke server, pastikan server backend berjalan.', 'error');
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
   const fetchAllData = async (authToken) => {
     setLoading(true);
     try {
@@ -139,6 +282,7 @@ export default function AdminDashboard() {
       setPartners(partnerRes);
       setMessages(msgRes);
       setSocials(socialRes);
+      fetchAiSettings();
     } catch (err) {
       showToast('Gagal memuat data dashboard', 'error');
     } finally {
@@ -146,17 +290,68 @@ export default function AdminDashboard() {
     }
   };
 
+  const openFeaturedModal = () => {
+    const currentFeatured = products
+      .filter(p => p.is_featured === 1 || p.is_featured === true)
+      .map(p => p.id);
+    setSelectedFeaturedIds(currentFeatured);
+    setFeaturedModalOpen(true);
+  };
+
+  const saveFeaturedProducts = async (ids) => {
+    try {
+      const res = await fetch('/api/products/featured', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ productIds: ids })
+      });
+      if (res.ok) {
+        showToast('3 Produk Beranda berhasil disimpan!');
+        setFeaturedModalOpen(false);
+        fetchAllData(token);
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Gagal menyimpan produk beranda', 'error');
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan koneksi', 'error');
+    }
+  };
+
+  const toggleFeatured = (product) => {
+    const isCurrentlyFeatured = product.is_featured === 1 || product.is_featured === true;
+    const currentFeatured = products
+      .filter(p => p.is_featured === 1 || p.is_featured === true)
+      .map(p => p.id);
+
+    let nextFeatured;
+    if (isCurrentlyFeatured) {
+      nextFeatured = currentFeatured.filter(id => id !== product.id);
+    } else {
+      if (currentFeatured.length >= 3) {
+        showToast('Maksimal 3 produk dapat ditampilkan di Beranda!', 'error');
+        return;
+      }
+      nextFeatured = [...currentFeatured, product.id];
+    }
+    saveFeaturedProducts(nextFeatured);
+  };
+
   const openAddModal = () => {
     setModalMode('add');
     setEditItem(null);
     setImageFile(null);
+    setImageFiles([]);
 
     if (activeTab === 'products') {
-      setFormData({ name: '', category: 'Olahan Kelapa', price: 0, description: '', badge: 'Unggulan', image_url: '' });
+      setFormData({ name: '', category: 'Olahan Kelapa', price: 0, description: '', badge: 'Unggulan', is_featured: 0, image_url: '' });
     } else if (activeTab === 'news') {
       setFormData({ title: '', category: 'Berita', content: '', excerpt: '', date: new Date().toISOString().split('T')[0], image_url: '' });
     } else if (activeTab === 'partners') {
-      setFormData({ name: '', website: 'https://', logo_url: '' });
+      setFormData({ name: '', website: '', logo_url: '' });
     } else if (activeTab === 'socials') {
       setFormData({ platform: 'Instagram', name: '', handle: '', description: '', url: 'https://', cover_color: 'from-purple-600 via-pink-500 to-amber-500' });
     }
@@ -167,6 +362,7 @@ export default function AdminDashboard() {
     setModalMode('edit');
     setEditItem(item);
     setImageFile(null);
+    setImageFiles([]);
     setFormData({ ...item });
     setModalOpen(true);
   };
@@ -198,10 +394,12 @@ export default function AdminDashboard() {
   const handleSubmitModal = async (e) => {
     e.preventDefault();
 
+    const isAddMode = modalMode === 'add' || !editItem || !editItem.id;
+
     if (activeTab === 'socials') {
       try {
-        const url = modalMode === 'add' ? '/api/socials' : `/api/socials/${editItem.id}`;
-        const method = modalMode === 'add' ? 'POST' : 'PUT';
+        const url = isAddMode ? '/api/socials' : `/api/socials/${editItem.id}`;
+        const method = isAddMode ? 'POST' : 'PUT';
         const res = await fetch(url, {
           method,
           headers: {
@@ -211,7 +409,7 @@ export default function AdminDashboard() {
           body: JSON.stringify(formData)
         });
         if (res.ok) {
-          showToast(`Berhasil ${modalMode === 'add' ? 'menambahkan' : 'memperbarui'} media sosial!`);
+          showToast(`Berhasil ${isAddMode ? 'menambahkan' : 'memperbarui'} media sosial!`);
           setModalOpen(false);
           fetchAllData(token);
         } else {
@@ -226,6 +424,8 @@ export default function AdminDashboard() {
 
     const data = new FormData();
     Object.keys(formData).forEach(key => {
+      // Avoid sending 'id' field in FormData when adding a new item
+      if (isAddMode && key === 'id') return;
       data.append(key, formData[key]);
     });
 
@@ -245,11 +445,11 @@ export default function AdminDashboard() {
       }
     }
 
-    const url = modalMode === 'add'
+    const url = isAddMode
       ? `/api/${activeTab}`
       : `/api/${activeTab}/${editItem.id}`;
 
-    const method = modalMode === 'add' ? 'POST' : 'PUT';
+    const method = isAddMode ? 'POST' : 'PUT';
 
     try {
       const res = await fetch(url, {
@@ -259,7 +459,7 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
-        showToast(`Berhasil ${modalMode === 'add' ? 'menambahkan' : 'perbarui'} data!`);
+        showToast(`Berhasil ${isAddMode ? 'menambahkan' : 'memperbarui'} data!`);
         setModalOpen(false);
         fetchAllData(token);
       } else {
@@ -292,15 +492,27 @@ export default function AdminDashboard() {
           <p className="text-xs text-slate-500 mt-0.5">Kelola konten website Koperasi Niu Kencana Asri secara cepat.</p>
         </div>
 
-        {activeTab !== 'messages' && activeTab !== 'security' && (
-          <button
-            onClick={openAddModal}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-900 text-white hover:bg-pink-600 text-xs font-bold transition shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah {activeTab === 'products' ? 'Produk' : activeTab === 'news' ? 'Berita' : activeTab === 'partners' ? 'Logo Mitra' : 'Media Sosial'}
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {activeTab === 'products' && (
+            <button
+              onClick={openFeaturedModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-sm"
+            >
+              <Star className="w-4 h-4 fill-white" />
+              Pilih 3 Produk Beranda ({products.filter(p => p.is_featured === 1 || p.is_featured === true).length}/3)
+            </button>
+          )}
+
+          {activeTab !== 'messages' && activeTab !== 'security' && activeTab !== 'ai_settings' && (
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-900 text-white hover:bg-pink-600 text-xs font-bold transition shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Tambah {activeTab === 'products' ? 'Produk' : activeTab === 'news' ? 'Berita' : activeTab === 'partners' ? 'Logo Mitra' : 'Media Sosial'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation Tabs */}
@@ -358,6 +570,16 @@ export default function AdminDashboard() {
         >
           <Lock className="w-4 h-4" /> Keamanan & Akun
         </button>
+
+        <button
+          onClick={() => setActiveTab('ai_settings')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'ai_settings' ? 'bg-pink-600 text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Bot className="w-4 h-4" /> Pengaturan NiuBot AI
+          <span className={`w-2 h-2 rounded-full ${aiConfig.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+        </button>
       </div>
 
       {/* TAB CONTENT */}
@@ -373,6 +595,7 @@ export default function AdminDashboard() {
                   <th className="p-4">Kategori</th>
                   <th className="p-4">Harga</th>
                   <th className="p-4">Badge</th>
+                  <th className="p-4">Tampil di Beranda</th>
                   <th className="p-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -380,7 +603,12 @@ export default function AdminDashboard() {
                 {products.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition">
                     <td className="p-4 flex items-center gap-3">
-                      <img src={p.image_url || 'https://via.placeholder.com/50'} alt={p.name} className="w-12 h-12 object-cover rounded-xl border border-slate-200" />
+                      <img 
+                        src={p.image_url || 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=150&auto=format&fit=crop&q=80'} 
+                        alt={p.name} 
+                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=150&auto=format&fit=crop&q=80'; }}
+                        className="w-12 h-12 object-cover rounded-xl border border-slate-200" 
+                      />
                       <div>
                         <div className="font-bold text-slate-900 text-sm">{p.name}</div>
                         <div className="text-[11px] text-slate-400 line-clamp-1">{p.description}</div>
@@ -390,6 +618,20 @@ export default function AdminDashboard() {
                     <td className="p-4 font-bold text-slate-900">Rp {Number(p.price).toLocaleString('id-ID')}</td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 rounded-full bg-pink-50 text-pink-700 font-bold text-[10px]">{p.badge}</span>
+                    </td>
+                    <td className="p-4">
+                      <button
+                        onClick={() => toggleFeatured(p)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition ${
+                          p.is_featured === 1 || p.is_featured === true
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                        title={p.is_featured ? 'Tampil di Beranda (Klik untuk batalkan)' : 'Klik untuk tampilkan di Beranda'}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${p.is_featured === 1 || p.is_featured === true ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+                        <span>{p.is_featured === 1 || p.is_featured === true ? 'Aktif Beranda' : 'Tidak Aktif'}</span>
+                      </button>
                     </td>
                     <td className="p-4 text-right space-x-2">
                       <button onClick={() => openEditModal(p)} className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-pink-100 hover:text-pink-600 transition">
@@ -615,6 +857,139 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* 6. AI SETTINGS TAB */}
+      {activeTab === 'ai_settings' && (
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Main Card */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                    Integrasi Google AI Studio (NiuBot)
+                    <Sparkles className="w-4 h-4 text-pink-500" />
+                  </h3>
+                  <p className="text-xs text-slate-500">Kelola API Key Google AI Gemini untuk otak kecerdasan buatan NiuBot CS.</p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className={`px-4 py-2 rounded-2xl border text-xs font-bold flex items-center gap-2 shrink-0 ${
+                aiConfig.connected 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                  : 'bg-rose-50 border-rose-200 text-rose-700'
+              }`}>
+                {aiConfig.connected ? (
+                  <>
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span>AI Connected (Terhubung)</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                    <span>AI Disconnected (Terputus)</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Live Connection Details */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-semibold flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-slate-400" /> Status Koneksi AI:
+                </span>
+                <span className={`font-bold ${aiConfig.connected ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {aiConfig.statusMsg || (aiConfig.connected ? 'Terhubung' : 'Terputus')}
+                </span>
+              </div>
+
+              {aiConfig.connected && (
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                  <div>
+                    <span className="text-slate-400">Model Aktif:</span>
+                    <span className="ml-1.5 font-bold text-slate-800">{aiConfig.activeModel || 'gemini-3.5-flash'}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400">Kecepatan Respon:</span>
+                    <span className="ml-1.5 font-bold text-emerald-600">{aiConfig.latency || '~500 ms'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* API Key Form */}
+            <form onSubmit={handleSaveAiKey} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Google Gemini API Key
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type={aiConfig.showKey ? "text" : "password"}
+                    required
+                    value={aiConfig.apiKey}
+                    onChange={(e) => setAiConfig({ ...aiConfig, apiKey: e.target.value })}
+                    placeholder="Masukkan Gemini API Key (misal: AIzaSy...)"
+                    className="w-full pl-10 pr-24 py-3 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 font-mono transition"
+                  />
+                  <Key className="w-4 h-4 text-slate-400 absolute left-3.5" />
+                  
+                  <button
+                    type="button"
+                    onClick={() => setAiConfig({ ...aiConfig, showKey: !aiConfig.showKey })}
+                    className="absolute right-3 px-2 py-1 text-slate-400 hover:text-slate-600 text-xs font-semibold flex items-center gap-1"
+                  >
+                    {aiConfig.showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  API Key dapat didapatkan secara gratis melalui dashboard <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-pink-600 underline font-semibold">Google AI Studio</a>.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={aiSaving}
+                  className="flex-1 px-5 py-3 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  {aiSaving ? 'Menyimpan...' : 'Simpan API Key'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => testAiConnection()}
+                  disabled={aiConfig.testing}
+                  className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${aiConfig.testing ? 'animate-spin' : ''}`} />
+                  {aiConfig.testing ? 'Menguji Koneksi...' : 'Uji Koneksi AI'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Database Integration Info Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-3xl shadow-sm space-y-3">
+            <h4 className="font-bold text-sm text-pink-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Informasi Integrasi Database Real-time
+            </h4>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              NiuBot AI CS telah terhubung langsung dengan database SQLite produk Koperasi Niu Kencana Asri. Setiap kali pengguna bertanya tentang produk, harga, stok, atau informasi koperasi, NiuBot secara otomatis mengakses data real-time terbaru untuk menjawab dengan akurat.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* MODAL FOR ADD / EDIT */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -763,9 +1138,12 @@ export default function AdminDashboard() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Tautan Website Mitra</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tautan Website Mitra <span className="text-slate-400 font-normal">(Opsional)</span>
+                    </label>
                     <input
                       type="url"
+                      placeholder="e.g. https://mitra.com (opsional)"
                       value={formData.website || ''}
                       onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none"
@@ -860,58 +1238,152 @@ export default function AdminDashboard() {
                 </>
               )}
 
-              {/* Image Input Options */}
+              {/* Image Input Options & Live Preview */}
               {activeTab !== 'socials' && (
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                <label className="block text-xs font-bold text-slate-800">
-                  {activeTab === 'news' ? 'Unggah Foto (Bisa sampai 5 Foto) / Masukkan URL' : 'Unggah Gambar atau Masukkan URL'}
-                </label>
-                
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple={activeTab === 'news'}
-                    onChange={(e) => {
-                      if (activeTab === 'news') {
-                        setImageFiles(Array.from(e.target.files).slice(0, 5));
-                      } else {
-                        setImageFile(e.target.files[0]);
-                      }
-                    }}
-                    className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
-                  />
-                  {activeTab === 'news' && imageFiles.length > 0 && (
-                    <div className="text-[11px] text-pink-600 font-bold mt-1">
-                      ✓ {imageFiles.length} foto dipilih
-                    </div>
+                  <label className="block text-xs font-bold text-slate-800">
+                    {activeTab === 'news' ? 'Unggah Foto (Bisa sampai 5 Foto) / Masukkan URL' : 'Unggah Gambar atau Masukkan URL'}
+                  </label>
+                  
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple={activeTab === 'news'}
+                      onChange={(e) => {
+                        if (activeTab === 'news') {
+                          setImageFiles(Array.from(e.target.files).slice(0, 5));
+                        } else {
+                          setImageFile(e.target.files[0] || null);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 font-bold text-center">— ATAU —</div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder={activeTab === 'news' ? "URL Gambar (pisahkan dengan koma jika > 1)" : "URL Gambar (e.g. https://...)"}
+                      value={formData.image_url || formData.logo_url || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (activeTab === 'news') {
+                          const urls = val.split(',').map(s => s.trim()).filter(Boolean);
+                          setFormData({ 
+                            ...formData, 
+                            image_url: urls[0] || '',
+                            image_urls: JSON.stringify(urls)
+                          });
+                        } else {
+                          setFormData({ ...formData, [activeTab === 'partners' ? 'logo_url' : 'image_url']: val });
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none bg-white"
+                    />
+                  </div>
+
+                  {/* LIVE IMAGE PREVIEW SECTION */}
+                  {activeTab === 'news' ? (
+                    imageFiles.length > 0 ? (
+                      <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                        <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                          <span>Preview ({imageFiles.length} Foto Dipilih)</span>
+                          <button
+                            type="button"
+                            onClick={() => setImageFiles([])}
+                            className="text-rose-600 hover:text-rose-700 text-[10px] font-bold"
+                          >
+                            Hapus Semua
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          {imageFiles.map((file, idx) => (
+                            <div key={idx} className="relative h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 group">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={`Preview ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setImageFiles(imageFiles.filter((_, i) => i !== idx))}
+                                className="absolute top-1 right-1 p-1 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white text-[10px] transition"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (formData.image_url || (formData.images && formData.images !== '[]')) ? (
+                      <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Preview Gambar Saat Ini
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(() => {
+                            let imgs = [];
+                            if (formData.images) {
+                              try {
+                                const parsed = JSON.parse(formData.images);
+                                if (Array.isArray(parsed) && parsed.length > 0) imgs = parsed;
+                              } catch (e) {}
+                            }
+                            if (imgs.length === 0 && formData.image_url) imgs = [formData.image_url];
+                            return imgs.map((src, idx) => (
+                              <img
+                                key={idx}
+                                src={src}
+                                alt={`News ${idx + 1}`}
+                                className="h-16 w-20 object-cover rounded-lg border border-slate-200"
+                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/80?text=Error'; }}
+                              />
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    ) : null
+                  ) : (
+                    (() => {
+                      const previewSrc = imageFile 
+                        ? URL.createObjectURL(imageFile) 
+                        : (formData.image_url || formData.logo_url);
+
+                      if (!previewSrc) return null;
+
+                      return (
+                        <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                            <span>Preview Gambar</span>
+                            <span className="text-emerald-600 font-extrabold text-[10px]">
+                              {imageFile ? '✓ File Baru Dipilih' : '✓ Gambar Aktif / URL'}
+                            </span>
+                          </div>
+                          <div className="relative h-44 w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 group">
+                            <img
+                              src={previewSrc}
+                              alt="Preview"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x250?text=Gambar+Tidak+Dapat+Dimuat'; }}
+                            />
+                            {imageFile && (
+                              <button
+                                type="button"
+                                onClick={() => setImageFile(null)}
+                                className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-rose-600 text-white text-[10px] font-bold transition flex items-center gap-1 shadow"
+                              >
+                                <X className="w-3.5 h-3.5" /> Batal Gambar Baru
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()
                   )}
                 </div>
-
-                <div className="text-[10px] text-slate-400 font-bold text-center">— ATAU —</div>
-
-                <div>
-                  <input
-                    type="text"
-                    placeholder={activeTab === 'news' ? "URL Gambar (pisahkan dengan koma jika > 1)" : "URL Gambar (e.g. https://...)"}
-                    value={formData.image_url || formData.logo_url || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (activeTab === 'news') {
-                        const urls = val.split(',').map(s => s.trim()).filter(Boolean);
-                        setFormData({ 
-                          ...formData, 
-                          image_url: urls[0] || '',
-                          image_urls: JSON.stringify(urls)
-                        });
-                      } else {
-                        setFormData({ ...formData, [activeTab === 'partners' ? 'logo_url' : 'image_url']: val });
-                      }
-                    }}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 outline-none bg-white"
-                  />
-                </div>
-              </div>
               )}
 
               <div className="pt-3 flex gap-3">
@@ -931,6 +1403,88 @@ export default function AdminDashboard() {
               </div>
 
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FOR FEATURED PRODUCTS SELECTION */}
+      {featuredModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  Pilih Produk Tampilan Beranda
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">Pilih maksimal 3 produk yang akan dipajang di halaman depan (Home).</p>
+              </div>
+              <button onClick={() => setFeaturedModalOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs font-bold text-slate-700 flex justify-between items-center">
+                <span>Daftar Produk ({products.length}):</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${selectedFeaturedIds.length === 3 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 text-slate-600'}`}>
+                  Terpilih: {selectedFeaturedIds.length} / 3 produk
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl max-h-72 overflow-y-auto">
+                {products.map((p) => {
+                  const isSelected = selectedFeaturedIds.includes(p.id);
+                  return (
+                    <label key={p.id} className={`flex items-center justify-between p-3.5 cursor-pointer hover:bg-slate-50 transition ${isSelected ? 'bg-amber-50/50' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <img src={p.image_url || 'https://via.placeholder.com/40'} alt={p.name} className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
+                        <div>
+                          <div className="font-bold text-slate-900 text-xs">{p.name}</div>
+                          <div className="text-[10px] text-slate-400">{p.category} • Rp {Number(p.price).toLocaleString('id-ID')}</div>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          if (isSelected) {
+                            setSelectedFeaturedIds(selectedFeaturedIds.filter(id => id !== p.id));
+                          } else {
+                            if (selectedFeaturedIds.length >= 3) {
+                              showToast('Maksimal 3 produk unggulan yang dapat dipilih', 'error');
+                              return;
+                            }
+                            setSelectedFeaturedIds([...selectedFeaturedIds, p.id]);
+                          }
+                        }}
+                        className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setFeaturedModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => saveFeaturedProducts(selectedFeaturedIds)}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition shadow flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                Simpan Perubahan
+              </button>
+            </div>
 
           </div>
         </div>

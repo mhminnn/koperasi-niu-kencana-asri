@@ -39,9 +39,16 @@ function initDb() {
       price REAL DEFAULT 0,
       image_url TEXT,
       badge TEXT DEFAULT 'Unggulan',
+      is_featured INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  try {
+    db.exec(`ALTER TABLE products ADD COLUMN is_featured INTEGER DEFAULT 0;`);
+  } catch (e) {
+    // Column already exists
+  }
 
   // News Table
   db.exec(`
@@ -102,6 +109,22 @@ function initDb() {
     );
   `);
 
+  // Settings Table (API Keys & Config)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+
+  // Seed default Gemini API Key if empty
+  const existingKey = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
+  if (!existingKey) {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('gemini_api_key', ?)").run(
+      process.env.GEMINI_API_KEY || ''
+    );
+  }
+
   // Seed default admin if empty
   const adminCount = db.prepare('SELECT COUNT(*) AS count FROM admin').get();
   if (adminCount.count === 0) {
@@ -118,8 +141,8 @@ function initDb() {
   const productCount = db.prepare('SELECT COUNT(*) AS count FROM products').get();
   if (productCount.count === 0) {
     const insertProduct = db.prepare(`
-      INSERT INTO products (name, description, category, price, image_url, badge)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO products (name, description, category, price, image_url, badge, is_featured)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
     `);
 
     insertProduct.run(
@@ -150,6 +173,12 @@ function initDb() {
     );
 
     console.log('✅ Sample products seeded');
+  } else {
+    // Ensure at least top 3 products are featured if none set yet
+    const featuredCount = db.prepare('SELECT COUNT(*) AS count FROM products WHERE is_featured = 1').get();
+    if (featuredCount.count === 0) {
+      db.prepare('UPDATE products SET is_featured = 1 WHERE id IN (SELECT id FROM products ORDER BY id ASC LIMIT 3)').run();
+    }
   }
 
   // Seed sample news if empty

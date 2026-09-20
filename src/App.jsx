@@ -11,6 +11,7 @@ import Contact from './pages/Contact';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import AiCustomerService from './components/AiCustomerService';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           </Routes>
         </main>
         <Footer />
+        <AiCustomerService />
       </div>
     </Router>
   );

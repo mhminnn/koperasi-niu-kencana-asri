@@ -92,12 +92,33 @@ router.put('/:id', verifyAdminToken, upload.single('logo'), (req, res) => {
   }
 });
 
+const fs = require('fs');
+
+function deleteUploadedFile(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') return;
+  if (fileUrl.startsWith('/uploads/')) {
+    const filename = path.basename(fileUrl);
+    const filepath = path.join(__dirname, '../../uploads', filename);
+    if (fs.existsSync(filepath)) {
+      try {
+        fs.unlinkSync(filepath);
+      } catch (e) {
+        console.error('Failed deleting physical file:', filepath, e);
+      }
+    }
+  }
+}
+
 // DELETE /api/partners/:id - Delete partner logo (Admin only)
 router.delete('/:id', verifyAdminToken, (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM partners WHERE id = ?').get(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'Mitra tidak ditemukan' });
+    }
+
+    if (existing.logo_url) {
+      deleteUploadedFile(existing.logo_url);
     }
 
     db.prepare('DELETE FROM partners WHERE id = ?').run(req.params.id);

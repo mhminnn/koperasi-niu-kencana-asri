@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
+    watch: {
+      ignored: ['**/server/**', '**/uploads/**', '**/database.sqlite*']
+    },
     proxy: {
       '/api': 'http://localhost:5000',
       '/uploads': 'http://localhost:5000'

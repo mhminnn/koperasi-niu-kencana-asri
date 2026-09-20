@@ -175,12 +175,41 @@ router.put('/:id', verifyAdminToken, newsUpload, (req, res) => {
   }
 });
 
+const fs = require('fs');
+
+function deleteUploadedFile(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') return;
+  if (fileUrl.startsWith('/uploads/')) {
+    const filename = path.basename(fileUrl);
+    const filepath = path.join(__dirname, '../../uploads', filename);
+    if (fs.existsSync(filepath)) {
+      try {
+        fs.unlinkSync(filepath);
+      } catch (e) {
+        console.error('Failed deleting physical file:', filepath, e);
+      }
+    }
+  }
+}
+
 // DELETE /api/news/:id - Delete news item (Admin only)
 router.delete('/:id', verifyAdminToken, (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM news WHERE id = ?').get(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'Berita tidak ditemukan' });
+    }
+
+    if (existing.image_url) {
+      deleteUploadedFile(existing.image_url);
+    }
+    if (existing.images) {
+      try {
+        const parsed = JSON.parse(existing.images);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(img => deleteUploadedFile(img));
+        }
+      } catch (e) {}
     }
 
     db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);

@@ -22,40 +22,6 @@ export default function Home() {
   const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Quick Contact Pop-up State
-  const [showQuickContact, setShowQuickContact] = useState(false);
-  const [quickFormData, setQuickFormData] = useState({ name: '', contact: '', message: '' });
-  const [quickSubmitting, setQuickSubmitting] = useState(false);
-  const [quickSuccess, setQuickSuccess] = useState(false);
-
-  const handleQuickSubmit = async (e) => {
-    e.preventDefault();
-    setQuickSubmitting(true);
-    setQuickSuccess(false);
-
-    try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: quickFormData.name,
-          email: quickFormData.contact,
-          subject: 'Pesan Cepat Beranda',
-          message: quickFormData.message
-        })
-      });
-
-      if (res.ok) {
-        setQuickSuccess(true);
-        setQuickFormData({ name: '', contact: '', message: '' });
-        setTimeout(() => setQuickSuccess(false), 4000);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setQuickSubmitting(false);
-    }
-  };
 
   useEffect(() => {
     async function fetchData() {
@@ -81,7 +47,7 @@ export default function Home() {
     <div className="space-y-24 pb-20 font-sans text-slate-800 selection:bg-[#ff2be0] selection:text-white">
       
       {/* 1. HERO SECTION WITH SEAMLESS PINK BACKDROP GRADIENT */}
-      <section className="relative -mt-20 pt-32 pb-24 overflow-hidden bg-gradient-to-b from-[#ffaee8] via-[#fc83df] via-45% to-[#fafafa]">
+      <section data-section="hero" className="relative -mt-20 pt-32 pb-24 overflow-hidden bg-gradient-to-b from-[#ffaee8] via-[#fc83df] via-45% to-[#fafafa]">
         
         {/* Glow backdrop element */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[950px] h-[400px] bg-gradient-to-tr from-[#f42db7]/30 via-[#ff66e5]/25 to-purple-300/15 blur-3xl pointer-events-none rounded-full" />
@@ -127,7 +93,7 @@ export default function Home() {
       </section>
 
       {/* 2. SECTION: KOLABORASI & INKLUSIVITAS UNTUK MASA DEPAN HIJAU */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6">
+      <section data-section="nilai" className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center bg-white p-6 sm:p-12 rounded-[2.5rem] border border-slate-200/80 shadow-sm">
           
           {/* Photo */}
@@ -192,7 +158,7 @@ export default function Home() {
       </section>
 
       {/* 3. SECTION: VISI & MISI + NEON PINK QUOTE BANNER */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6">
+      <section data-section="visi" className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
           
           {/* Left Column: Visi & Misi List */}
@@ -242,7 +208,7 @@ export default function Home() {
       </section>
 
       {/* 4. SECTION: PRODUK UNGGULAN KAMI */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
+      <section data-section="produk" className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
         <div className="space-y-3 max-w-2xl mx-auto">
           <span className="inline-flex items-center gap-1 px-3.5 py-1 rounded-full bg-pink-50 border border-pink-200/80 text-[#ff2be0] text-[11px] font-bold tracking-wide">
             [ Produk Unggulan ]
@@ -274,48 +240,55 @@ export default function Home() {
           </div>
         ) : products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
-            {products.slice(0, 3).map((product) => (
-              <div key={product.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between">
-                <div className="h-48 overflow-hidden relative bg-slate-100">
-                  <img
-                    src={product.image_url || 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'}
-                    alt={product.name}
-                    className="w-full h-full object-cover hover:scale-105 transition duration-500"
-                  />
-                  {product.badge && (
-                    <span className="absolute top-3 left-3 bg-[#ff2be0] text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow">
-                      {product.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#ff2be0]">{product.category}</span>
-                    <h3 className="font-bold text-slate-900 text-base line-clamp-1 mt-0.5">{product.name}</h3>
-                    <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
+            {(() => {
+              const featured = products.filter(p => p.is_featured === 1 || p.is_featured === true);
+              const remaining = products.filter(p => !(p.is_featured === 1 || p.is_featured === true));
+              const displayProducts = [...featured, ...remaining].slice(0, 3);
+
+              return displayProducts.map((product) => (
+                <div key={product.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between">
+                  <div className="h-48 overflow-hidden relative bg-slate-100">
+                    <img
+                      src={product.image_url || 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'}
+                      alt={product.name}
+                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600&auto=format&fit=crop&q=80'; }}
+                      className="w-full h-full object-cover hover:scale-105 transition duration-500"
+                    />
+                    {product.badge && (
+                      <span className="absolute top-3 left-3 bg-[#ff2be0] text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow">
+                        {product.badge}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    <span className="text-sm font-extrabold text-slate-900">
-                      Rp {Number(product.price).toLocaleString('id-ID')}
-                    </span>
-                    <a
-                      href={`https://api.whatsapp.com/send?phone=6285395477026&text=${encodeURIComponent(`Halo Koperasi Niu Kencana Asri, saya berminat memesan produk: ${product.name}`)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-[#f42db7] rounded-xl transition-all duration-300 shadow hover:shadow-md hover:scale-105 active:scale-95"
-                    >
-                      Pesan via WA 
-                    </a>
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#ff2be0]">{product.category}</span>
+                      <h3 className="font-bold text-slate-900 text-base line-clamp-1 mt-0.5">{product.name}</h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">{product.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                      <span className="text-sm font-extrabold text-slate-900">
+                        Rp {Number(product.price).toLocaleString('id-ID')}
+                      </span>
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=6285395477026&text=${encodeURIComponent(`Halo Koperasi Niu Kencana Asri, saya berminat memesan produk: ${product.name}`)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-[#f42db7] rounded-xl transition-all duration-300 shadow hover:shadow-md hover:scale-105 active:scale-95"
+                      >
+                        Pesan WA
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         ) : null}
       </section>
 
       {/* 5. SECTION: DASHBOARD VISUAL SENDIRI (ANALYTICS PREVIEW) */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
+      <section data-section="dashboard" className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
         <div className="space-y-3 max-w-2xl mx-auto">
           <span className="inline-flex items-center gap-1 px-3.5 py-1 rounded-full bg-pink-50 border border-pink-200/80 text-[#ff2be0] text-[11px] font-bold tracking-wide">
             [ DASHBOARD METRIK ]
@@ -399,7 +372,7 @@ export default function Home() {
       </section>
 
       {/* 6. SECTION: UPDATE KEGIATAN & KEMITRAAN KAMI */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
+      <section data-section="berita" className="max-w-6xl mx-auto px-4 sm:px-6 text-center space-y-8">
         <div className="space-y-3 max-w-2xl mx-auto">
           <span className="inline-flex items-center gap-1 px-3.5 py-1 rounded-full bg-pink-50 border border-pink-200/80 text-[#ff2be0] text-[11px] font-bold tracking-wide">
             [ KABAR TERBARU ]
@@ -494,7 +467,7 @@ export default function Home() {
       </section>
 
       {/* 7. SECTION: HUBUNGI KAMI UNTUK KERJA SAMA & INFORMASI (DARK CARD MATCHING IMAGE 4) */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6">
+      <section data-section="kontak" className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="bg-[#09090b] text-white rounded-[2.5rem] p-8 sm:p-14 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative overflow-hidden shadow-2xl">
           
           <div className="lg:col-span-7 space-y-6 relative z-10">
@@ -565,138 +538,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FLOATING QUICK CONTACT POP-UP WIDGET */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-        
-        {/* POP-UP MODAL WINDOW */}
-        {showQuickContact && (
-          <div className="mb-4 w-[calc(100vw-3rem)] sm:w-96 bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
-            
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-4 flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-2xl bg-[#ff2be0] text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0">
-                  💬
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm leading-tight text-white">Kontak Cepat Koperasi</h4>
-                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    CS Siap Membantu
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowQuickContact(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-              
-              {/* Quick Contact Buttons */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <a
-                  href="https://api.whatsapp.com/send?phone=6285395477026&text=Halo%20Koperasi%20Niu%20Kencana%20Asri,%20saya%20ingin%20bertanya..."
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-900 flex flex-col items-center text-center transition group shadow-sm"
-                >
-                  <span className="text-xl mb-1 group-hover:scale-110 transition-transform">💬</span>
-                  <span className="font-extrabold text-xs">WhatsApp Direct</span>
-                  <span className="text-[10px] text-emerald-700 font-medium">Chat Seketika</span>
-                </a>
-
-                <a
-                  href="tel:085395477026"
-                  className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-900 flex flex-col items-center text-center transition group shadow-sm"
-                >
-                  <PhoneCall className="w-5 h-5 text-pink-600 mb-1 group-hover:scale-110 transition-transform" />
-                  <span className="font-extrabold text-xs">Telepon CS</span>
-                  <span className="text-[10px] text-slate-500 font-medium">0853-9547-7026</span>
-                </a>
-              </div>
-
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="shrink-0 mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Atau Kirim Pesan Cepat</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
-              {/* Form Success State */}
-              {quickSuccess ? (
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-center space-y-1 animate-in fade-in">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto" />
-                  <p className="text-xs font-extrabold">Pesan Berhasil Terkirim!</p>
-                  <p className="text-[11px] text-emerald-700">Tim kami akan segera menghubungi Anda kembali.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleQuickSubmit} className="space-y-3">
-                  <div>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nama Lengkap Anda"
-                      value={quickFormData.name}
-                      onChange={(e) => setQuickFormData({ ...quickFormData, name: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <input
-                      type="text"
-                      required
-                      placeholder="No. WhatsApp / Email Anda"
-                      value={quickFormData.contact}
-                      onChange={(e) => setQuickFormData({ ...quickFormData, contact: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <textarea
-                      required
-                      rows="2"
-                      placeholder="Tuliskan pertanyaan atau kebutuhan Anda..."
-                      value={quickFormData.message}
-                      onChange={(e) => setQuickFormData({ ...quickFormData, message: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition resize-none"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={quickSubmitting}
-                    className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-[#ff2be0] text-white font-bold text-xs transition-all duration-300 shadow flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    {quickSubmitting ? 'Mengirim...' : 'Kirim Pesan Cepat'}
-                  </button>
-                </form>
-              )}
-
-            </div>
-          </div>
-        )}
-
-        {/* FLOATING ACTION TRIGGER BUTTON */}
-        <button
-          onClick={() => setShowQuickContact(!showQuickContact)}
-          className="group px-4 py-3 rounded-full bg-slate-950 hover:bg-[#ff2be0] text-white font-extrabold text-xs shadow-2xl hover:shadow-pink-500/30 transition-all duration-300 flex items-center gap-2.5 border border-slate-800 hover:scale-105 active:scale-95"
-        >
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
-          </span>
-          <MessageCircle className="w-4 h-4 text-pink-300 group-hover:text-white transition" />
-          <span>{showQuickContact ? 'Tutup' : 'Kontak Cepat'}</span>
-        </button>
-
-      </div>
 
     </div>
   );
